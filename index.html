@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html>
+	<head>
+    <meta charset="utf-8">
+    <title>Visual Digital Library</title>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script> 
+	
+	<style>
+	@CHARSET "utf-8";
+
+	@font-face {
+		font-family: 'robotothin';
+		src: url('Roboto-Thin-webfont.eot');
+		src: url('Roboto-Thin-webfont.eot?#iefix') format('embedded-opentype'),
+			 url('Roboto-Thin-webfont.woff') format('woff'),
+			 url('Roboto-Thin-webfont.ttf') format('truetype'),
+			 url('Roboto-Thin-webfont.svg#robotothin') format('svg');
+		font-weight: normal;
+		font-style: normal;
+	}
+
+	body {
+		font-family: 'robotothin', Verdana, serif;
+	}
+	</style>
+	
+	</head>
+  
+	<body>
+	
+	<script>
+	d3
+		.select("body")
+		.append("div")
+		.attr("id", "pane-container")
+		.style("display", "flex")
+		.style("border", "1px dashed LightGrey")
+		.style("width", "100%")
+		.style("height", "100%");
+	
+	d3
+		.select("#pane-container")
+		.append("nav")
+		.attr("id", "left-pane")
+		.style("border", "1px solid LightGrey")
+		.style("min-width", "200px")
+		.style("min-height", "600px")
+		.style("flex", 1)
+	d3
+		.select("#left-pane")
+		.append("h1")
+		.attr("id", "title")
+		.style("text-align", "center")
+		.text("Title");
+	
+	d3
+		.select("#pane-container")
+		.append("nav")
+		.attr("id", "centre-pane")
+		.style("display", "flex")
+		.style("border" , "1px solid LightGrey")
+		.style("min-width", "400px")	
+		.style("min-height", "600px")
+		.style("flex", 2);
+	
+	d3
+		.select("#pane-container")
+		.append("nav")
+		.attr("id", "right-pane")
+		.style("border", "1px solid LightGrey")
+		.style("min-width", "200px")
+		.style("min-height", "600px")
+		.style("flex", 1)
+	
+	d3
+		.select("body")
+		.append("div")
+		.attr("id", "below-container")
+		.style("border", "1px dashed LightGrey")
+		.style("margin", "10px 100px 10px 100px");
+	
+	d3
+		.select("#below-container")
+		.append("nav")
+		.attr("id", "abstract-container")
+	d3
+		.select("#abstract-container")
+		.append("h1")
+		.style("text-align", "center")
+		.text("Abstract");
+		
+	var margin = {top: 15, left: 15, bottom: 15, right: 15};
+	var pixel = 4;
+	var image_size = 10;
+	var pixel_selected = 20;
+	var no_opacity = 1;
+	var opacity_level = 0.6;
+	var opacity_path = 0.2;
+	var cover_size = "70%";
+	
+	var colourScaleThreshold = 2;
+	var coverScaleThreshold = 5;
+	
+	var outerwidth = parseInt(d3.select("#centre-pane").style("width"));
+	var outerheight = parseInt(d3.select("#centre-pane").style("height"));
+	var innerwidth = outerwidth - margin.left - margin.right;
+	var innerheight = outerheight - margin.top - margin.bottom;
+	
+	var legendwidth = parseInt(d3.select("#right-pane").style("width"));
+	var legendheight = parseInt(d3.select("#right-pane").style("height")); 
+	
+	var xColumn = "x";
+	var yColumn = "y";
+	var level1color = "label_x"; //"topicid_orig";
+	var level2color = "label_y"; //"topicid";
+	
+	var dataset1 = "points.eucl.lda.lev2.csv";
+	var coords1 = "coords.1.csv";
+	var coords2 = "coords.2.csv";
+	var coords3 = "coords.3.csv";
+	var coords4 = "coords.4.csv";
+	var coords5 = "coords.5.csv";
+	
+	var scale;
+	
+	var topic_list_1 = ["Decision making", "Finance", "Financial instruments valuation - Pricing", "Management", "Marketing"];
+	var colour_list_1 = ["#1f77b4", "#aec7e8", "#ff7f0e", "#ad494a", "#2ca02c"];                           
+	
+	var topic_list_2 = ["Knowledge management", "Personal decision making", "Business decision making", "Risk", "Capital", "Investment", "Financial accounting", "Volatility instruments", "Stock price", "Strategy", "Development", "Leadership", "International marketing", "Social and political marketing", "Marketing and Economics"];
+	var colour_list_2 = ["#98df8a", "#d62728", "#ff9896", "#9467bd", "#c5b0d5", "#8c564b", "#c49c94", "#e377c2", "#f7b6d2", "#7f7f7f", "#c7c7c7", "#bcbd22", "#dbdb8d", "#17becf", "#9edae5"];
+	
+	var xScale = d3.scale.linear().range([0, innerwidth]);
+	var yScale = d3.scale.linear().range([innerheight, 0]);
+
+
+	var cScale1 = d3.scale.ordinal()
+		.range(colour_list_1)
+		.domain(topic_list_1);
+	//console.log(cScale1.domain());
+	var cScale2 = d3.scale.ordinal()
+		.range(colour_list_2)
+		.domain(topic_list_2);
+		
+	var svg = d3
+		.select("#centre-pane")
+		.append("svg")
+		.style("border", "1px dashed teal")
+		.attr("class", "svg")
+		.attr("width",  outerwidth)
+		.attr("height", outerheight);
+
+	var g_paths =	svg
+		.append("g")
+		.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+		
+	var g_rects =	svg
+		.append("g")
+		.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+	
+	//var path = g.append("path");
+	
+	var line = d3.svg.line()
+        .x(function(d) { return xScale(d[xColumn]); })
+        .y(function(d) { return yScale(d[yColumn]); })
+		.interpolate("basis-closed");
+	
+	//Legend 1
+	var legend = d3
+		.select("#right-pane")
+		.append("svg")
+		.style("border", "1px dashed teal")
+		.attr("class", "svg")
+		.attr("width",  legendwidth)
+		.attr("height", legendheight);
+	
+	var legend1 = legend
+		.selectAll(".legend")
+		.data(cScale1.domain());
+		
+	var legend2 = legend
+		.selectAll(".legend")
+		.data(cScale2.domain());
+	
+	legend1
+		.enter()
+		.append("g")
+		.attr("class", "legend")
+		.attr("id", function(d){ return d.replace(/\s/g,'')}) //substring(0, 4)
+		.attr("transform", function(d, i) { return "translate(0," + (margin.top + (i * legendheight / 6)) + ")"; })
+		.append("rect")
+		.attr("x", margin.left)
+		.attr("width", legendwidth - margin.left - margin.right)
+		.attr("height", legendheight / 7)
+		.attr("fill", cScale1)
+		.attr("opacity", opacity_level);
+		
+	legend1
+		.append("text")
+		.attr("class", "label")
+		.attr("fill", "white")
+		.attr("x", legendwidth / 2)
+		.attr("y", legendheight / 7 / 2)
+		.attr("dy", ".5em")
+		.style("text-anchor", "middle")
+		.text(function(d) { return d; });
+	
+	function renderarea(data){
+		
+		var path = g_paths
+			.append("path")
+			.attr("class", "path")
+			.attr("d", line(data))
+			.attr("fill", "#1f77b4")
+			.attr("opacity", opacity_path)
+			.text(function(d,i){return "topic" + i} );
+	}
+
+	function render(data){
+		var pattern = g_rects
+			.selectAll("pattern")
+			.data(data);
+		pattern	
+			.enter()
+			.append("pattern")
+			.attr("width", image_size)
+			.attr("height", image_size)
+			.attr("viewBox", "0 0 100 100")
+			.attr("preserveAspectRatio", "none")
+			.attr("id", function(d) {return d.docid;})
+			.append("image")
+			.attr("width", image_size)
+			.attr("height", image_size)
+			.attr("xlink:href", function(d) {return d.cover_url;});
+
+		//Data binding
+		var rects = g_rects
+			.call(d3.behavior.zoom().x(xScale).y(yScale).scaleExtent([1, 1000]).on("zoom", zoom))
+			.selectAll("rect")
+			.data(data);
+		
+		//Transparent Rectangle under the svg used for filling the space btw two pixels and listens for zoom events.
+		g_rects
+			.append("rect")
+			.attr("id", "overlay")
+			.style("fill", "none")
+			.style("pointer-events", "all")
+			.attr("width", outerwidth)
+			.attr("height", outerheight);
+			
+		//enter the new data
+		rects
+			.enter()
+			.append("rect")
+			.attr("height", pixel)
+			.attr("width", pixel)
+			
+		//Update all the rect
+		
+		rects
+			.attr("fill", function(d) { 
+				return cScale1(d[level1color]);
+			})
+			
+			.on("mouseover", function(d) {
+			
+				d3
+					.select("#title-tooltip")
+					.remove();
+				d3
+					.select("#abstract-tooltip")
+					.remove();
+				d3
+					.select("#left-cover")
+					.remove();
+				
+				if (scale == undefined || scale < colourScaleThreshold) {
+					var id = "#" + d[level1color].replace(/\s/g,'');
+				} else {
+					var id = "#" + d[level2color].replace(/\s/g,'');
+				}
+		
+				d3
+					.select("#right-pane")
+					.select(id)
+					.select("rect")
+					.attr("opacity", no_opacity)
+					
+				d3
+					.select("#left-pane")
+					.append("p")
+					.attr("id", "title-tooltip")
+					.style("text-align", "center")
+					.style("min-height", "70px")
+					.text(d.title);
+				d3
+					.select("#left-pane")
+					.append ("img")
+					.attr("id", "left-cover")
+					.attr("src", d.cover_url)
+					.style("display", "block")
+					.style("margin-left", "auto")
+					.style("margin-right", "auto")
+					.style("width", cover_size);
+					
+				d3
+					.select("#abstract-container")
+					.append("p")
+					.attr("id", "abstract-tooltip")
+					.style("text-align", "justify")
+					.style("text-justify", "inter-word")
+					.text(d.description);
+				if (d3.select(this).attr("lock") != "lock") {
+					d3
+						.select(this)
+						.transition()
+						.ease("elastic")
+						.duration("200")
+						.attr("height", pixel_selected)
+						.attr("width", pixel_selected)
+						//.attr("fill", "orange")
+						.attr("opacity", no_opacity);
+					}
+			})
+			
+			.on("click", function(){
+				d3
+					.select(this)
+					.attr("height", pixel_selected)
+					.attr("width", pixel_selected)
+				if (d3.select(this).attr("lock") != "lock"){
+					d3.select(this).attr("lock", "lock");
+				} else {
+					d3.select(this).attr("lock", null);
+				}
+			})
+			
+			.on("mouseout", function(){
+				if (d3.select(this).attr("lock") != "lock") {
+					d3
+						.select(this)
+						.transition()
+						.ease("elastic")
+						.duration("1000")
+						.attr("height", pixel)
+						.attr("width", pixel);
+						
+					if ( scale == undefined || scale < colourScaleThreshold ) {
+						rects
+							.attr("fill", function(d) { return cScale1(d[level1color]);})
+							.style("fill", null);
+					} else if ( scale < coverScaleThreshold ) {
+						rects
+							.attr("fill", function(d) { return cScale2(d[level2color]);})
+							.style("fill", null);
+					} 
+					else {
+						rects
+							.style("fill", function(d) { return "url(#" + d.docid + ")" })
+							.attr("opacity", opacity_level);
+					}	
+				}
+				
+				d3
+					.select("#right-pane")
+					.selectAll(".legend")
+					.select("rect")
+					.attr("opacity", opacity_level)
+			})
+			
+			
+			.attr("x", function (d){ return xScale(d[xColumn]); })
+			.attr("y", function (d){ return yScale(d[yColumn]); });
+;
+
+		//Exit
+		rects.exit().remove();			
+		
+		function zoom() {
+		
+		//Semantic zoom
+		
+		rects
+			.attr("x", function (d){ return xScale(d[xColumn]); })
+			.attr("y", function (d){ return yScale(d[yColumn]); });
+
+		var trans = d3.event.translate;
+		scale = d3.event.scale;
+		
+		if ( scale < colourScaleThreshold ) {
+			rects
+				.attr("fill", function(d) { return cScale1(d[level1color]);})
+				.style("fill", null)
+				.attr("opacity", no_opacity);
+		} else if ( scale < coverScaleThreshold ) {
+			rects
+				.attr("fill", function(d) { return cScale2(d[level2color]);})
+				.style("fill", null)
+				.attr("opacity", no_opacity);;
+		} 
+		else {
+			rects
+				.style("fill", function (d){ return "url(#" + d.docid + ")" })
+				.attr("opacity", opacity_level);
+		}
+		
+		if (scale == undefined || scale < colourScaleThreshold) {	
+			//Legend 1
+			legend1.remove();
+			legend2.remove();
+			
+			legend1
+				.enter()
+				.append("g")
+				.attr("class", "legend")
+				.attr("id", function(d){ return d.replace(/\s/g,'')} )
+				.attr("transform", function(d, i) { return "translate(0," + (margin.top + (i * legendheight / 6)) + ")"; })
+				.append("rect")
+				.attr("x", margin.left)
+				.attr("width", legendwidth - margin.left - margin.right)
+				.attr("height", legendheight / 7)
+				.attr("fill", cScale1)
+				.attr("opacity", opacity_level);	
+			
+			//legend1.exit().remove();
+			
+			legend1				
+				.append("text")
+				.attr("class", "label")
+				.attr("fill", "white")
+				.attr("x", legendwidth / 2) //legendwidth - margin.left - pixel_selected
+				.attr("y", legendheight / 7 / 2)
+				.attr("dy", ".5em")
+				.style("text-anchor", "middle")
+				.text(function(d) { return d; });			
+			
+		} else {
+			//Legend 2
+			legend1.remove();
+			legend2.remove();
+			
+			legend2
+				.enter()
+				.append("g")
+				.attr("class", "legend")
+				.attr("id", function(d){return d.replace(/\s/g,'')} )
+				.attr("transform", function(d, i) { return "translate(0," + (margin.top + (i * legendheight / 16)) + ")"; })
+				.append("rect")
+				.attr("x", margin.left)
+				.attr("width", legendwidth - margin.left - margin.right)
+				.attr("height", legendheight / 17)
+				.attr("fill", cScale2)
+				.attr("opacity", opacity_level);
+
+			//legend2.exit().remove();
+				
+			legend2
+				.append("text")
+				.attr("class", "label")
+				.attr("fill", "white")
+				.attr("x", legendwidth / 2)
+				.attr("y", legendheight / 17 / 2)
+				.attr("dy", ".5em")
+				.style("text-anchor", "middle")
+				.text(function(d) { return d; });
+		}
+		
+		//Geometric zoom
+		g_rects.attr("transform", "translate(" + trans + ")" + " scale(" + scale + ")");
+		g_paths.attr("transform", "translate(" + trans + ")" + " scale(" + scale + ")");
+		}
+
+	}
+	
+	function type(d){
+	d.x = +d.x;
+	d.y = +d.y;
+	return d;
+	};
+	
+	d3.csv(dataset1, type, function(dataset1) {
+		xScale.domain(d3.extent(dataset1, function (d){ return d[xColumn]; }));
+		yScale.domain(d3.extent(dataset1, function (d){ return d[yColumn]; }));
+		
+		d3.csv(coords1, type, renderarea);
+		d3.csv(coords2, type, renderarea);
+		d3.csv(coords3, type, renderarea);
+		d3.csv(coords4, type, renderarea);
+		d3.csv(coords5, type, renderarea);
+
+	});
+	
+	d3.csv(dataset1, type, function(dataset1) {
+		xScale.domain(d3.extent(dataset1, function (d){ return d[xColumn]; }));
+		yScale.domain(d3.extent(dataset1, function (d){ return d[yColumn]; }));
+		
+		render(dataset1);
+		
+	});
+
+	
+	//d3.csv(dataset1, type, render);
+	
+	</script>
+	
+	</body>
+	</html>
