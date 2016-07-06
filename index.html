@@ -152,6 +152,8 @@
 	//var colour_list_2 = ["#E40109", "#F07901", "#FDCA01", "#dbdb8d", "#07357F", "#0084CF", "#01A4E9", "#17becf", "#0A6420", "#00A131", "#98C001", "#9edae5"];//12 TOPICS
 	var colour_list_2 = ["#E40109", "#086397", "#4EB112", "#07357F", "#7B68E5", "#B25B1C", "#0A6420", "#98C001", "#00A131"];//9 TOPICS
 	
+	var colour_list_3 = ["#FF4D01", "#FF4D01", "#FF4D01", "#1C004C", "#1C004C", "#1C004C", "#30A728", "#30A728", "#30A728"];
+	
 	var xScale = d3.scale.linear().range([0, innerwidth]);
 	var yScale = d3.scale.linear().range([innerheight, 0]);
 
@@ -163,6 +165,9 @@
 	var cScale2 = d3.scale.ordinal()
 		.range(colour_list_2)
 		.domain(topic_list_2);
+	
+	var cScale3 = d3.scale.ordinal()
+		.range(colour_list_3);
 	
 	//SVG init
 	var svg = d3
@@ -205,7 +210,7 @@
 	var legend2 = g_legend
 		.selectAll(".legend")
 		.data(cScale2.domain());
-	
+
 	legend1
 		.enter()
 		.append("g")
@@ -550,6 +555,14 @@
 				.attr("height", legendheight)
 				.attr("fill", cScale2)
 				.attr("opacity", opacity_legend);
+			
+			legend2
+				.append("rect")
+				.attr("x", outerwidth - margin.left - legendwidth)
+				.attr("width", 20)
+				.attr("height", legendheight)
+				.attr("fill", cScale3);
+				
 				
 			legend2
 				.append("text")
