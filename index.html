@@ -410,18 +410,17 @@
 					.style("margin-top", margin.top + "px")
 					.style("margin-right", margin.right + "px");
 					
-				if (d3.event.pageX < 650) {
+				if (d3.event.pageX < bodywidth / 2) {
 					var locationX = 50;
-				} else if (d3.event.pageX >= 650) {
+				} else if (d3.event.pageX >= bodywidth / 2) {
 					var locationX = - (tooltip_max_width / 100 * bodywidth) - 60; //because tooltip max-width = 40% of the body width
 				}
 
-				if (d3.event.pageY < 400) {
+				if (d3.event.pageY < bodyheight / 2) {
 					var locationY = - 20;
-				} else if (d3.event.pageY >= 400) {
+				} else if (d3.event.pageY >= bodyheight / 2) {
 					var locationY = - (tooltip_max_eight / 100 * bodyheight); //because tooltip max-width = 50% of the body width
 				}
-
 				d3
 					.select("#tooltip")
 					.style("left", (d3.event.pageX + locationX) + "px")
@@ -732,7 +731,10 @@
 						.transition()
 						.duration(1000)
 						.attr("transform", "translate(" + outerwidth / 2 + "," + outerheight / 2 + ")scale(" + 1 + ")translate(" + -(trans[0] + x * scale) + "," + -(trans[1] + y * scale) + ")");
-				
+			
+				console.log(scale);
+				console.log(d3.behavior.zoom().scale());
+				console.log(d3.behavior.zoom().translate());
 				});
 				
 			//insert a rect in first position into the g_legend group
