@@ -130,7 +130,7 @@
 	var opacity_tooltip = 0.9;
 	var opacity_level = 0.6;
 	var opacity_legend = 0.4;
-	var opacity_points = 0.1;
+	var opacity_points = 0.05;
 	var opacity_path = 0.1;
 	var opacity_legend_background = 0.6;
 	var cover_size = "32%"
@@ -176,8 +176,8 @@
 	//var topic_list_2 = ["Macro-Micro", "Statistics", "Social economics", "Mathematics", "Market finance", "Accounting", "Corporate finance", "Risk", "HR-Leadership", "Marketing", "Strategy", "Production"]; //12 TOPICS
 	var topic_list_2 = ["HR - Leadership", "Strategy - Production", "Marketing", "Market finance - Risk", "Corporate finance", "Corporate finance - Risk", "Economics theory", "Mathematical economics"]; //9 TOPICS
 	//var colour_list_2 = ["#E40109", "#086397", "#4EB112", "#07357F", "#7B68E5", "#B25B1C", "#0A6420", "#98C001", "#00A131"];//9 TOPICS
-	var colour_list_2 = ["#E40109", "#F07901", "#FDCA01", "#07357F", "#0084CF", "#01A4E9", "#0A6420", "#00A131", "#98C001"]; //9 TOPICS
-	
+	var colour_list_2 = ["#E40109", "#F07901", "#FFB020", "#07357F", "#0084CF", "#01A4E9", "#0A6420", "#00A131", "#98C001"]; //9 TOPICS
+	//FFCE0F
 	//Manual mapping that allows the mapping between low level and high level. Topic list is for the click and translate feature. Colour list is for the plain squares of the legend.
 	var topic_list_3 = ["Business", "Business", "Business", "Finance", "Finance", "Finance", "Economics", "Economics"]; 
 	var colour_list_3 = ["#FF4D01", "#FF4D01", "#FF4D01", "#1C004C", "#1C004C", "#1C004C", "#30A728", "#30A728", "#30A728"];
@@ -331,10 +331,14 @@
 		.attr("type", "text")
 		.attr("id", "searchTerm")
 		.attr("placeholder", "Search Keywords")
+		.on("keypress", function(){
+			document.getElementById("button").click()
+		});
 	
 	d3	
 		.select("#search")
 		.append("input")
+		.attr("id", "button")
 		.attr("type", "button")
 		.attr("name", "submit")
 		.attr("value", "Filter")
