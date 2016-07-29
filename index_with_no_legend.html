@@ -823,7 +823,7 @@
 				.attr("fill", cScale3);
 				
 				
-/*			legend2
+			legend2
 				.append("text")
 				.attr("class", "label")
 				.attr("fill", "white")
@@ -831,7 +831,7 @@
 				.attr("y", legendheight / 2)
 				.attr("dy", ".20em")
 				.style("text-anchor", "middle")
-				.text(function(d, i) { return "Topic " + (i + 1); });*/
+				.text(function(d, i) { return "Topic " + (((i - (i % 3)) / 3) + 1); });
 			
 			//Insert an invisible_rect above the legend_rect, so that it can entirely be clicked.
 			legend2
