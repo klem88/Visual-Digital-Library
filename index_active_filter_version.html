@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html>
+	<head>
+    <meta charset="utf-8">
+    <title>Visual Digital Library</title>
+    <script src = "//cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script> 	
+	<script src = "//cdnjs.cloudflare.com/ajax/libs/lunr.js/0.7.1/lunr.min.js"></script> 
+	
+	<style>
+	@CHARSET "utf-8";
+
+	@font-face {
+		font-family: 'robotothin';
+		src: url('Roboto-Thin-webfont.eot');
+		src: url('Roboto-Thin-webfont.eot?#iefix') format('embedded-opentype'),
+			 url('Roboto-Thin-webfont.woff') format('woff'),
+			 url('Roboto-Thin-webfont.ttf') format('truetype'),
+			 url('Roboto-Thin-webfont.svg#robotothin') format('svg');
+		font-weight: normal;
+		font-style: normal;
+	}
+
+	body {
+		font-family: 'robotothin', Verdana, serif;
+	}
+	</style>
+	
+	</head>
+  
+	<body>
+
+	
+	<script>
+	var margin = {top: 15, left: 15, bottom: 15, right: 15};
+	var left_min_width = window.innerWidth //200;
+	var left_min_height = (window.innerHeight / 6) - (2 * (margin.top + margin.bottom)) //650;
+	var center_min_width = window.innerWidth //400;
+	var center_min_height = (window.innerHeight * 5 / 6) - (2 * (margin.top + margin.bottom)) //650;
+	var tooltip_max_width = 40;
+	var tooltip_max_eight = 50;
+	var filter;
+	var filter_docid = [];
+	
+	d3
+		.select("body")
+		.append("div")
+		.attr("id", "pane-container")
+		.style("display", "inline-block")
+		//.style("border", "1px dashed LightGrey")
+		.style("width", "100%")
+		.style("height", "100%");
+	
+	d3
+		.select("#pane-container")
+		.append("nav")
+		.attr("id", "centre-pane")
+		//.style("display", "flex")
+		//.style("border" , "1px solid LightGrey")
+		.style("min-width", center_min_width - margin.left - margin.right + "px")
+		.style("min-height", center_min_height + "px")
+		//.style("flex", 6);
+
+	d3
+		.select("#pane-container")
+		.append("nav")
+		.attr("id", "left-pane");
+
+	/*d3
+		.select("#left-pane")
+		.append("h1")
+		.attr("id", "title")
+		.style("text-align", "center")
+		.text("Selection");	
+	*/
+	
+	// Define the div for the tooltip
+	d3
+		.select("#centre-pane")
+		.append("div")
+		.attr("id", "tooltip")
+		.style("opacity", 0)
+		.style("position", "absolute")
+		.style("text-align", "justify")
+		.style("max-width", tooltip_max_width + "%") //40% of the body
+		.style("max-eight", tooltip_max_eight + "%") //50% of the body
+		.style("color", "white")
+		.style("padding", "10px")
+		.style("border", "10px")
+		.style("border-radius", "8px")
+		.style("pointer-events", "none")
+		.style("line-height", "15px");
+
+	d3
+		.select("#tooltip")
+		.append("nav")
+		.attr("id", "t_title");
+	
+	d3
+		.select("#tooltip")
+		.append("nav")
+		.attr("id", "t_cover")
+		.style("float", "left")
+		.append("img")
+		.style("margin-left", "1px")
+		.style("margin-right", "1px")
+		.style("width", "180px");
+	
+	d3
+		.select("#tooltip")
+		.append("nav")
+		.attr("id", "t_abstract");
+
+	d3
+		.select("#centre-pane")
+		.append("div")
+		.attr("id", "container_bis")
+		.style("display", "inline-block")
+		//.style("flex-direction", "column")
+		//.style("border", "2px solid black")
+		.style("width", "100%")
+		.style("height", "100%");
+	
+	d3
+		.select("#container_bis")
+		.append("div")
+		//.style("flex", 2)
+		//.style("height", "75px")
+		//.style("width", "100%")
+		.attr("id", "search")
+		.style("text-align", "center")
+		//.append("form")
+		//.attr("name", "searchForm");
+
+
+	var pixel = 4.5;
+	var image_size = 10;
+	var pixel_selected = 16;
+	var pixel_filtered = 8;
+	var no_opacity = 1;
+	var opacity_tooltip = 0.9;
+	var opacity_level = 0.6;
+	var opacity_legend = 0.4;
+	var opacity_points = 0.05;
+	var opacity_path = 0.1;
+	var opacity_legend_background = 0.6;
+	var cover_size = "32%"
+	var num_char_of_abstract = 1000;
+	var transition_duration = "400";
+	var legend_small_square_width = 20;
+	var centroid = [];
+	
+	var colourScaleThreshold = 1.5;
+	var coverScaleThreshold = 4;
+	
+	var outerwidth = parseInt(d3.select("#centre-pane").style("width"));
+	var outerheight = parseInt(d3.select("#centre-pane").style("height"));
+	var innerwidth = outerwidth - margin.left - margin.right;
+	var innerheight = outerheight - margin.top - margin.bottom;
+	var bodywidth = parseInt(d3.select("body").style("width"));
+	var bodyheight = parseInt(d3.select("body").style("height"));
+	
+	var legendwidth = 300;
+	var legendheight = 25;
+	
+	var xColumn = "x";
+	var yColumn = "y";
+	var level1color = "label_x"; //"topicid_orig";
+	var level2color = "label_y"; // "topicid";
+	
+	var dataset1 = "points.eucl.lda.lev2.csv";
+	var coords1 = "coords.1.csv";
+	var coords2 = "coords.2.csv";
+	var coords3 = "coords.3.csv";
+	//var coords4 = "coords.4.csv";
+	//var coords5 = "coords.5.csv";
+	
+	// contains the zoom level
+	var scale;
+	var trans;
+	
+	//The below is manual and it has to be exactly the same labels than in the input file
+	//var topic_list_1 = ["Math - Stat", "Economics", "Finance", "Management - Marketing"]; //4 TOPICS
+	var topic_list_1 = ["Business", "Finance", "Economics"]; //3 TOPICS
+	//var colour_list_1 = ["#FF4D01", "#1C004C", "#30A728", "#0250FB"]; //4 TOPICS
+	var colour_list_1 = ["#FF4D01", "#1C004C", "#30A728"]; //3 TOPICS
+	
+	//var topic_list_2 = ["Macro-Micro", "Statistics", "Social economics", "Mathematics", "Market finance", "Accounting", "Corporate finance", "Risk", "HR-Leadership", "Marketing", "Strategy", "Production"]; //12 TOPICS
+	var topic_list_2 = ["HR - Leadership", "Strategy - Production", "Marketing", "Market finance - Risk", "Corporate finance", "Corporate finance - Risk", "Economics theory", "Mathematical economics"]; //9 TOPICS
+	//var colour_list_2 = ["#E40109", "#086397", "#4EB112", "#07357F", "#7B68E5", "#B25B1C", "#0A6420", "#98C001", "#00A131"];//9 TOPICS
+	var colour_list_2 = ["#E40109", "#F07901", "#FFB020", "#07357F", "#0084CF", "#01A4E9", "#0A6420", "#00A131", "#98C001"]; //9 TOPICS
+	//FFCE0F
+	//Manual mapping that allows the mapping between low level and high level. Topic list is for the click and translate feature. Colour list is for the plain squares of the legend.
+	var topic_list_3 = ["Business", "Business", "Business", "Finance", "Finance", "Finance", "Economics", "Economics"]; 
+	var colour_list_3 = ["#FF4D01", "#FF4D01", "#FF4D01", "#1C004C", "#1C004C", "#1C004C", "#30A728", "#30A728", "#30A728"];
+	
+	var xScale = d3.scale.linear().range([0, innerwidth]);
+	var yScale = d3.scale.linear().range([innerheight, 0]);
+	
+	//Colour scales level 1 and 2
+	var cScale1 = d3.scale.ordinal()
+		.range(colour_list_1)
+		.domain(topic_list_1);
+	//console.log(cScale1.domain());
+	var cScale2 = d3.scale.ordinal()
+		.range(colour_list_2)
+		.domain(topic_list_2);
+	
+	var cScale3 = d3.scale.ordinal()
+		.range(colour_list_3);
+	
+	//mapping table for legend translation on legend's click
+	var map_table = {}
+	for (var i = 0; i < topic_list_2.length; i++) {
+		map_table[topic_list_2[i]] = topic_list_3[i];
+	}
+	
+	//SVG init
+	var svg = d3
+		.select("#container_bis")
+		.append("div")
+		.attr("id", "svg-pane")
+		.append("svg")
+		.style("border", "1px dashed teal")
+		.attr("class", "svg")
+		.attr("width", outerwidth) 
+		.attr("height", outerheight); 
+				
+	var g_zoom = svg
+		.append("g")
+		.attr("id", "g_zoom");
+		
+
+	var g_paths = g_zoom
+		.append("g")
+		.attr("id", "g_paths");
+		
+	var g_rects =	g_zoom
+		.append("g")
+		.attr("id", "g_rects")
+		.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+		
+	var g_legend = svg
+		.append("g")
+		.attr("id", "g_legend");
+	
+	var line = d3.svg.line()
+        .x(function(d) { return xScale(d[xColumn]); })
+        .y(function(d) { return yScale(d[yColumn]); })
+		.interpolate("basis-closed");
+	
+	//Legend 1
+	
+	var legend1 = g_legend
+		.selectAll(".legend")
+		.data(cScale1.domain());
+		
+	var legend2 = g_legend
+		.selectAll(".legend")
+		.data(cScale2.domain());
+
+	legend1
+		.enter()
+		.append("g")
+		.attr("class", "legend")
+		.attr("id", function(d){ return d.replace(/\s/g,'')})
+		.attr("transform", function(d, i) { return "translate(0," + (margin.top + (i * 30)) + ")"; })
+		.append("rect")
+		.attr("x", outerwidth - margin.left - legendwidth)
+		.attr("width", legendwidth)
+		.attr("height", legendheight)
+		.attr("fill", cScale1)
+		.attr("opacity", opacity_legend);
+
+	legend1
+		.append("rect")
+		.attr("x", outerwidth - margin.left - legendwidth)
+		.attr("width", legend_small_square_width)
+		.attr("height", legendheight)
+		.attr("fill", cScale1);
+		
+	legend1
+		.append("text")
+		.attr("class", "label")
+		.attr("fill", "white")
+		.attr("x", outerwidth - margin.left - (legendwidth / 2))
+		.attr("y", legendheight / 2)
+		.attr("dy", ".20em")
+		.style("text-anchor", "middle")
+		.text(function(d) { return d; });
+	//Insert an invisible_rect above the legend_rect, so that it can entirely be clicked.
+	legend1
+		.append("rect")
+		.attr("class", "invisible_rect")
+		.attr("x", outerwidth - margin.left - legendwidth)
+		.attr("width", legendwidth)
+		.attr("height", legendheight)
+		.style("fill", "none")
+		.style("pointer-events", "all")
+		.on("click", function(d){
+			var legend_label = d;
+			d3
+				.select(this)
+				.attr("opacity", null);
+			g_rects
+				.selectAll("circle")
+				.attr("opacity", null)
+				.filter(function(d) { return d.label_x != legend_label; })
+				.attr("opacity", opacity_points)
+				.attr("active_click", null);
+		})
+		.on("mouseover", function(d){
+			var legend_id = d.replace(/\s/g,'');
+			
+			d3
+				.select(".svg")
+				.select("#g_legend")
+				.select("#" + legend_id)
+				.select("rect")
+				.attr("opacity", "none");
+
+		})
+		.on("mouseout", function(d){		
+			d3
+				.select(".svg")
+				.select("#g_legend")
+				.selectAll("rect")
+				.attr("opacity", opacity_legend);
+		});
+		
+	
+	//insert a rect in first position into the g_legend group
+	g_legend
+		.insert("rect", ":first-child")
+		.attr("id", "lengend_background")
+		.attr("width", d3.select("#g_legend").node().getBBox().width)
+		.attr("height", d3.select("#g_legend").node().getBBox().height)
+		.attr("fill", "white")
+		.attr("opacity", opacity_legend_background)
+		.attr("x", outerwidth - margin.left - legendwidth);
+	
+	//Search input form
+
+	d3
+		.select("#search")
+		.append("input")
+		.attr("type", "text")
+		.attr("id", "searchTerm")
+		.attr("placeholder", "Search Keywords")
+		.style("width", "50%")
+		//.style("border", "none")
+		.style("padding", "10px")
+		.style("margin", "10px");
+		//.on("keypress", function(){
+		//	document.getElementById("button").click();
+		//});
+	
+	d3	
+		.select("#search")
+		.append("input")
+		.attr("id", "button")
+		.attr("type", "button")
+		.style("width", "20%")
+		.attr("value", "Search Books")
+		//.style("border", "none")
+		.style("padding", "10px")
+		.style("margin", "10px")
+		.on("click", function(){
+			var temp;
+			filter = index.search(document.getElementById("searchTerm").value);
+			filter_docid = [];
+			filter.forEach( function(d){ filter_docid.push( d.ref )} );
+			
+			if(document.getElementById("searchTerm").value == ""){
+				g_rects
+					.selectAll("circle")
+					.attr("opacity", null)
+					.attr("active_click", "ACTIVE")
+			} else {
+				g_rects
+					.selectAll("circle")
+					.attr("opacity", null)
+					.attr("active_click", "ACTIVE")
+/*					.filter(function(d) { 
+						if(filter.forEach(function (a){
+							console.log(a.ref == d.docid);
+							return a.ref == d.docid;
+						} )){
+							console.log("yes");
+							temp = {docid: d.ref, rank: d.score};
+							console.log(temp);
+							return true;
+						}
+					})*/
+					.filter(function(d) { return  !(filter_docid.includes(d.docid)); })
+					.attr("active_click", null)
+					.attr("opacity", opacity_points); //function(){ if(temp.length != 0){ temp.rank }}
+			}
+		});
+	
+	d3	
+		.select("#search")
+		.append("input")
+		.attr("id", "button-reset")
+		.attr("type", "button")
+		.style("width", "20%")
+		.style("padding", "10px")
+		.style("margin", "10px")
+		//.style("border", "none")
+		.attr("value", "Reset")
+		.on("click", function(){
+			g_rects
+					.selectAll("circle")
+					.attr("opacity", null)
+					.attr("active_click", "ACTIVE");
+
+			d3
+				.select("#left-pane")
+				.selectAll("img")
+				.remove();
+				
+			//Geometric zoom
+			g_zoom
+				.transition()
+				.duration(1000)
+				.attr("transform", "translate(" + outerwidth / 2 + "," + outerheight / 2 + ")scale(" + 1 + ")translate(" + -(trans[0] + outerwidth / 2 * scale) + "," + -(trans[1] + outerheight / 2 * scale) + ")");
+			
+			/*var zoom = d3.behavior.zoom();
+			
+			console.log(zoom.scale());
+			console.log(zoom.translate());
+			console.log(scale);
+			console.log(trans);
+			
+			scale = 1;
+			trans = [0, 0];
+			g_zoom.transition().duration(500).attr('transform', 'translate(' + trans + ') scale(' + scale + ')');*/
+		});
+	
+	function renderarea(data, topic){
+		
+		var path = g_paths
+			.append("path")
+			.attr("class", "path")
+			.attr("id", topic)
+			.attr("d", line(data))
+			.attr("fill",  "#1f77b4") //cScale1(topic)
+			/*.attr("stroke", cScale1(topic))
+			.attr("stroke-dasharray", "5,5")
+			.attr("stroke-width", "5px")*/
+			.attr("opacity", opacity_path)
+			.text(function(d,i){return "topic" + i} );
+			
+			//calculate the centroid using the bbox
+		function getMyCentroid(element) {
+			var bbox = element.getBBox();
+			return [bbox.x + bbox.width/2, bbox.y + bbox.height/2];
+		}
+		
+		d3.select("#" + topic)[0].forEach(function (d) {
+			centroid.push({topic: topic, x: getMyCentroid(d)[0], y: getMyCentroid(d)[1]});
+		});
+	}
+
+
+	function render(data){
+	/*	var pattern = g_rects
+			.selectAll("pattern")
+			.data(data);
+		pattern	
+			.enter()
+			.append("pattern")
+			.attr("width", image_size)
+			.attr("height", image_size)
+			.attr("viewBox", "0 0 100 100")
+			.attr("preserveAspectRatio", "none")
+			.attr("id", function(d) {return d.docid;})
+			.append("image")
+			.attr("width", image_size)
+			.attr("height", image_size)
+			.attr("xlink:href", function(d) {return d.cover_url;});
+	*/
+		//Data binding
+		var rects = g_zoom
+			.call(d3.behavior.zoom().x(xScale).y(yScale).scaleExtent([1, 100]).on("zoom", zoom))
+			.select("#g_rects")
+			.selectAll("circle")
+			.data(data);
+		
+		//Transparent Rectangle under the svg used for filling the space btw two pixels and listens for zoom events + click event for rendering all points without opacity.
+		g_zoom
+			.insert("rect", ":first-child")
+			.attr("id", "overlay")
+			//.attr("stroke", "blue")
+			.style("fill", "none")
+			.style("pointer-events", "all")
+			.attr("width", outerwidth)
+			.attr("height", outerheight);
+			
+		//enter the new data
+		rects
+			.enter()
+			.append("circle")
+			.attr("r", pixel);
+			
+		//Update all the rect
+		
+		rects
+			.attr("id", function(d){ return "d" + d.docid })
+			.attr("fill", function(d){ return cScale1(d[level1color]) })
+			.attr("active_click", "ACTIVE")
+			
+			.on("mouseover", function(d) {
+				if(d3.select(this).attr("active_click") == "ACTIVE"){
+					d3
+						.select("#tooltip")
+						.transition()
+						.duration(transition_duration)
+						.style("opacity", opacity_tooltip);
+					
+					d3
+						.select("#t_title")
+						.html("<b>" + d.title + "</b>; <i>" + d.contributor1 + "</i> </br> <small>" + d.Level1 + " " + d.Level2 + " </small>"); //d.calais + " " + d.concept
+
+					d3
+						.select("#t_abstract")
+						.html("<small>" + d.description.substring(0,num_char_of_abstract) + "...</small>")
+						.style("margin-top", margin.top + "px");
+						
+					d3
+						.select("#t_cover")
+						.select ("img")
+						.attr("src", d.cover_url)
+						.style("margin-top", margin.top + "px")
+						.style("margin-right", margin.right + "px");
+						
+					if (d3.event.pageX < bodywidth / 2) {
+						var locationX = 50;
+					} else if (d3.event.pageX >= bodywidth / 2) {
+						var locationX = - (tooltip_max_width / 100 * bodywidth) - 60; //because tooltip max-width = 40% of the body width
+					}
+
+					if (d3.event.pageY < bodyheight / 2) {
+						var locationY = - 20;
+					} else if (d3.event.pageY >= bodyheight / 2) {
+						var locationY = - (tooltip_max_eight / 100 * bodyheight); //because tooltip max-width = 50% of the body width
+					}
+					d3
+						.select("#tooltip")
+						.style("left", (d3.event.pageX + locationX) + "px")
+						.style("top", (d3.event.pageY + locationY) + "px")
+						.style("background", function (){
+							if (scale == undefined || scale < colourScaleThreshold) {
+								return cScale1(d[level1color]);
+							} else {
+								return cScale2(d[level2color]);
+							}
+						});
+					
+					if (scale == undefined || scale < colourScaleThreshold) {
+						var id = "#" + d[level1color].replace(/\s/g,'');
+					} else {
+						var id = "#" + d[level2color].replace(/\s/g,'');
+					}
+					//legend selection
+					d3
+						.select("#centre-pane")
+						.select("#g_legend")
+						.select(id)
+						.select("rect")
+						.transition()
+						.duration(transition_duration)
+						.attr("opacity", no_opacity);
+						
+					d3
+						.select(this)
+						.transition()
+						.ease("elastic")
+						.duration(transition_duration)
+						.attr("r", pixel_selected);
+				}
+			})
+			
+			.on("click", function(d){
+				if(d3.select(this).attr("active_click") == "ACTIVE"){
+					var id = "#d" + d.docid;
+					
+					d3
+						.select("#left-pane")
+						.append ("img")
+						.attr("id", id)
+						.attr("src", d.cover_url)
+						.style("display", "inline-block")
+						.style("margin-left", "1px")
+						.style("margin-right", "1px")
+						//.style("width", cover_size) //based on a percentage
+						.style("height", left_min_height + margin.bottom + "px")
+						.on("mouseover", function(d){
+							d3
+								.select("#centre-pane")
+								.select(id)
+								.attr("r", pixel_selected)
+								.attr("fill", "red");
+
+							//document.getElementById(id.substring(1, 10)).click();
+					
+						})
+				
+						.on("mouseout", function(d){
+							d3
+								.select("#centre-pane")
+								.select(id)
+								.attr("r", pixel);
+
+							if ( scale == undefined || scale < colourScaleThreshold ) {
+								d3
+									.select("#centre-pane")
+									.select(id)
+									.attr("fill", function(d) { return cScale1(d[level1color]);})
+									.style("fill", null);
+							} else {
+								d3
+									.select("#centre-pane")
+									.select(id)
+									.attr("fill", function(d) { return cScale2(d[level2color]);})
+									.style("fill", null);
+							} 
+							})
+						.on("click", function(){
+							d3
+								.select(this)
+								.remove();
+							d3
+								.select("#centre-pane")
+								.select(id)
+								.attr("r", pixel);	
+
+							if ( scale == undefined || scale < colourScaleThreshold ) {
+								d3
+									.select("#centre-pane")
+									.select(id)
+									.attr("fill", function(d) { return cScale1(d[level1color]);})
+									.style("fill", null);
+							} else {
+								d3
+									.select("#centre-pane")
+									.select(id)
+									.attr("fill", function(d) { return cScale2(d[level2color]);})
+									.style("fill", null);
+							}	
+						});
+				}
+			})
+			
+			.on("mouseout", function(){
+				if(d3.select(this).attr("active_click") == "ACTIVE"){
+					d3
+						.select(this)
+						.transition()
+						//.ease("elastic")
+						.duration(transition_duration)
+						.attr("r", pixel);
+						
+					if ( scale == undefined || scale < colourScaleThreshold ) {
+						rects
+							.attr("fill", function(d) { return cScale1(d[level1color]);})
+							.style("fill", null);
+					} else {
+						rects
+							.attr("fill", function(d) { return cScale2(d[level2color]);})
+							.style("fill", null);
+					}
+					
+					d3
+						.select("#centre-pane")
+						.selectAll(".legend")
+						.select("rect")
+						.transition()
+						.duration(transition_duration)
+						.attr("opacity", opacity_legend);
+					
+					d3
+						.select("#tooltip")
+						.transition()
+						.duration(transition_duration)
+						.style("opacity", 0);
+				}
+			})	
+
+			//pixels location		
+			.attr("cx", function (d){ return xScale(d[xColumn]); })
+			.attr("cy", function (d){ return yScale(d[yColumn]); });
+
+		//Exit
+		rects.exit().remove();			
+		
+		function zoom() {
+		
+		trans = d3.event.translate;
+		scale = d3.event.scale;
+		
+		//Semantic zoom		
+		rects
+			.attr("cx", function (d){ return xScale(d[xColumn]); })
+			.attr("cy", function (d){ return yScale(d[yColumn]); });
+		
+		//Geometric zoom
+		//g_rects.attr("transform", "translate(" + trans + ")" + " scale(" + scale + ")");
+		g_paths.attr("transform", "translate(" + trans + ")" + " scale(" + scale + ")");
+		d3.select("#overlay").attr("transform", "translate(" + trans + ")" + " scale(" + scale + ")");
+		
+		
+		
+		if ( scale < colourScaleThreshold ) {
+			rects
+				.attr("fill", function(d) { return cScale1(d[level1color]);})
+				.style("fill", null);
+				//.attr("opacity", no_opacity);
+		} else {
+			rects
+				.attr("fill", function(d) { return cScale2(d[level2color]);})
+				.style("fill", null);
+				//.attr("opacity", no_opacity);
+		}
+		
+		//Remove the legend background
+		g_legend
+			.select("rect")
+			.remove();
+		
+		if (scale == undefined || scale < colourScaleThreshold) {
+			//Legend 1
+			legend1.remove();
+			legend2.remove();
+			
+			legend1
+				.enter()
+				.append("g")
+				.attr("class", "legend")
+				.attr("id", function(d){ return d.replace(/\s/g,'')})
+				.attr("transform", function(d, i) { return "translate(0," + (margin.top + (i * 30)) + ")"; })
+				.append("rect")
+				.attr("x", outerwidth - margin.left - legendwidth)
+				.attr("width", legendwidth)
+				.attr("height", legendheight)
+				.attr("fill", cScale1)
+				.attr("opacity", opacity_legend);
+			
+			legend1
+				.append("rect")
+				.attr("x", outerwidth - margin.left - legendwidth)
+				.attr("width", 20)
+				.attr("height", legendheight)
+				.attr("fill", cScale1);
+						
+			legend1
+				.append("text")
+				.attr("class", "label")
+				.attr("fill", "white")
+				.attr("x", outerwidth - margin.left - (legendwidth / 2))
+				.attr("y", legendheight / 2)
+				.attr("dy", ".20em")
+				.style("text-anchor", "middle")
+				.text(function(d) { return d; });
+				
+			//Insert an invisible_rect above the legend_rect, so that it can entirely be clicked.
+			legend1
+				.append("rect")
+				.attr("class", "invisible_rect")
+				.attr("x", outerwidth - margin.left - legendwidth)
+				.attr("width", legendwidth)
+				.attr("height", legendheight)
+				.style("fill", "none")
+				.style("pointer-events", "all")
+				.on("click", function(d){
+					var legend_label = d;
+					d3
+						.select(this)
+						.attr("opacity", null);
+					g_rects
+						.selectAll("circle")
+						.attr("opacity", null)
+						.attr("active_click", "ACTIVE")
+						.filter(function(d) { return d.label_x != legend_label; })
+						.attr("opacity", opacity_points)
+						.attr("active_click", null);
+				
+					var x = centroid.filter(function(a){ return a.topic == legend_label })[0]["x"];
+					var y = centroid.filter(function(a){ return a.topic == legend_label })[0]["y"];
+			
+					//Geometric zoom
+					g_zoom
+						.transition()
+						.duration(1000)
+						.attr("transform", "translate(" + outerwidth / 2 + "," + outerheight / 2 + ")scale(" + 1 + ")translate(" + -(trans[0] + x * scale) + "," + -(trans[1] + y * scale) + ")");
+				})
+				.on("mouseover", function(d){
+					var legend_id = d.replace(/\s/g,'');
+					
+					d3
+						.select(".svg")
+						.select("#g_legend")
+						.select("#" + legend_id)
+						.select("rect")
+						.attr("opacity", "none");
+
+				})
+				.on("mouseout", function(d){		
+					d3
+						.select(".svg")
+						.select("#g_legend")
+						.selectAll("rect")
+						.attr("opacity", opacity_legend);
+				});
+			
+			//insert a rect in first position into the g_legend group
+			g_legend
+				.insert("rect", ":first-child")
+				//.select("rect")
+				.attr("width", d3.select("#g_legend").node().getBBox().width + margin.right + margin.left)
+				.attr("height", d3.select("#g_legend").node().getBBox().height + margin.top + margin.bottom)
+				.attr("fill", "white")
+				.attr("opacity", opacity_legend_background)
+				.attr("x", outerwidth - margin.left - margin.right - legendwidth);
+				
+		} else {
+			//Legend 2
+			legend1.remove();
+			legend2.remove();
+			
+			legend2
+				.enter()
+				.append("g")
+				.attr("class", "legend")
+				.attr("id", function(d){return d.replace(/\s/g,'')} )
+				.attr("transform", function(d, i) { return "translate(0," + (margin.top + (i * 30)) + ")"; })
+				.append("rect")
+				.attr("x", outerwidth - margin.left - legendwidth)
+				.attr("width", legendwidth)
+				.attr("height", legendheight)
+				.attr("fill", cScale2)
+				.attr("opacity", opacity_legend);
+			
+			legend2
+				.append("rect")
+				.attr("x", outerwidth - margin.left - legendwidth)
+				.attr("width", 20)
+				.attr("height", legendheight)
+				.attr("fill", cScale3);
+				
+				
+			legend2
+				.append("text")
+				.attr("class", "label")
+				.attr("fill", "white")
+				.attr("x", outerwidth - margin.left - (legendwidth / 2))
+				.attr("y", legendheight / 2)
+				.attr("dy", ".20em")
+				.style("text-anchor", "middle")
+				.text(function(d) { return d; });
+			
+			//Insert an invisible_rect above the legend_rect, so that it can entirely be clicked.
+			legend2
+				.append("rect")
+				.attr("class", "invisible_rect")
+				.attr("x", outerwidth - margin.left - legendwidth)
+				.attr("width", legendwidth)
+				.attr("height", legendheight)
+				.style("fill", "none")
+				.style("pointer-events", "all")
+				.on("click", function(d){
+					var legend_label = d;
+					d3
+						.select(this)
+						.attr("opacity", null);
+					g_rects
+						.selectAll("circle")
+						.attr("opacity", null)
+						.attr("active_click", "ACTIVE")
+						.filter(function(d) { return d.label_y != legend_label; })
+						.attr("opacity", opacity_points)
+						.attr("active_click", null);
+				
+					var x = centroid.filter(function(a){ return a.topic == map_table[legend_label] })[0]["x"];
+					var y = centroid.filter(function(a){ return a.topic == map_table[legend_label] })[0]["y"];
+
+					//Geometric zoom
+					g_zoom
+						.transition()
+						.duration(1000)
+						.attr("transform", "translate(" + outerwidth / 2 + "," + outerheight / 2 + ")scale(" + 1 + ")translate(" + -(trans[0] + x * scale) + "," + -(trans[1] + y * scale) + ")");
+				
+				/*console.log(scale);
+				console.log(d3.behavior.zoom().scale());
+				console.log(d3.behavior.zoom().translate());*/
+				})
+				.on("mouseover", function(d){
+					var legend_id = d.replace(/\s/g,'');
+					
+					d3
+						.select(".svg")
+						.select("#g_legend")
+						.select("#" + legend_id)
+						.select("rect")
+						.attr("opacity", "none");
+				})
+				.on("mouseout", function(d){		
+					d3
+						.select(".svg")
+						.select("#g_legend")
+						.selectAll("rect")
+						.attr("opacity", opacity_legend);
+				});
+				
+			//insert a rect in first position into the g_legend group
+			g_legend
+				.insert("rect", ":first-child")
+				//.select("rect")
+				.attr("width", d3.select("#g_legend").node().getBBox().width + margin.right + margin.left)
+				.attr("height", d3.select("#g_legend").node().getBBox().height + margin.top + margin.bottom)
+				.attr("fill", "white")
+				.attr("opacity", opacity_legend_background)
+				.attr("x", outerwidth - margin.left - margin.right -  legendwidth);
+		}
+		
+		}
+
+	}
+	
+	function type(d){
+	index.add({
+	id: d["docid"],
+	title: d["title"],
+	body: d["description"]
+	});
+	d.x = +d.x;
+	d.y = +d.y;
+	return d;
+	};
+	
+	d3.csv(dataset1, type, function(dataset1) {
+		xScale.domain(d3.extent(dataset1, function (d){ return d[xColumn]; }));
+		yScale.domain(d3.extent(dataset1, function (d){ return d[yColumn]; }));
+		
+		d3.csv(coords1, type, function(d){
+			var topic = "Business";
+			renderarea (d, topic);
+		});
+		d3.csv(coords2, type, function(d){
+			var topic = "Finance";
+			renderarea (d, topic);
+		});
+		d3.csv(coords3, type, function(d){
+			var topic = "Economics";
+			renderarea (d, topic);
+		});
+/*
+		d3.csv(coords4, type, function(d){
+			var topic = "Management - Marketing";
+			renderarea (d, topic);
+		});
+
+		d3.csv(coords5, type, function(d){
+			var topic = "Marketing";
+			renderarea (d, topic);
+			
+		});		
+		d3.csv(coords2, type, renderarea);
+		d3.csv(coords3, type, renderarea);
+		d3.csv(coords4, type, renderarea);
+		d3.csv(coords5, type, renderarea);
+*/
+	});
+		
+	var index = lunr(function () {
+	this.field('title', {boost: 10})
+	this.field('body')
+	this.ref('id')
+	})
+	
+	d3.csv(dataset1, type, function(dataset1) {
+	
+		xScale.domain(d3.extent(dataset1, function (d){ return d[xColumn]; }));
+		yScale.domain(d3.extent(dataset1, function (d){ return d[yColumn]; }));
+		
+		render(dataset1);
+	});
+	
+	//d3.csv(dataset1, type, render);
+	
+	</script>
+	
+	</body>
+	</html>
